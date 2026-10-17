@@ -101,6 +101,29 @@ new commit (new change id)  →  the changes you deleted
 If you touch anything besides deleting `-`/`+` lines, the tool refuses to run
 the split and tells you which file caused it.
 
+## Undo
+
+The tool prints the pre-split operation id, so you can recombine the commits
+without hunting through `jj op log`:
+
+```text
+$ jj split
+jj-split-cli: to undo, run: jj op restore 5d68783e53e9
+Warning: All changes have been selected, so the original revision will become empty.
+Selected changes : wwtmovrx b79da5bb (no description set)
+Remaining changes: mwxpvrst e7d9eae5 (empty) (no description set)
+...
+```
+
+Restore it to put the changes back where they were:
+
+```sh
+jj op restore 5d68783e53e9
+```
+
+(The hint is best-effort: it is omitted when `jj` isn't on `PATH` or the working
+directory isn't in a jj repo.)
+
 ## Configuration
 
 `--editor` picks the editor: either a built-in keyword or a full command. It

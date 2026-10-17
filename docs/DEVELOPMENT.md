@@ -25,14 +25,16 @@ of `right/` is ours to shape; jj only cares about the tree we leave behind.
 ## Data flow
 
 1. `run()` → `parseArgs()` → `runEdit()`.
-2. `readTree(leftDir)` + `readTree(rightDir)` → parent and target trees in memory.
-3. `buildPlan()` per changed text file → `lineDiff()` then render hunks or full
+2. `currentOperationID()` → remember the pre-edit jj operation for the undo hint.
+3. `readTree(leftDir)` + `readTree(rightDir)` → parent and target trees in memory.
+4. `buildPlan()` per changed text file → `lineDiff()` then render hunks or full
    into `right/`, keeping the ops and rendered lines for reconstruction.
-4. `openEditor(rightDir)` → run `$JJ_SPLIT_EDITOR <right>`, block until exit.
-5. `readTree(rightDir)` → the edited diff views.
-6. `applyEdits()` → `markKept()` the deleted rendered lines, `reconstruct()` the
+5. `openEditor(rightDir)` → run `$JJ_SPLIT_EDITOR <right>`, block until exit.
+6. `readTree(rightDir)` → the edited diff views.
+7. `applyEdits()` → `markKept()` the deleted rendered lines, `reconstruct()` the
    first-commit file, and write plain content back into `right/`.
-7. Tool exits `0` → jj snapshots `right/`.
+8. `printUndoHint()` → print the pre-edit operation id.
+9. Tool exits `0` → jj snapshots `right/`.
 
 ## Key design decisions
 
@@ -84,6 +86,13 @@ env var can override a config-baked `--editor`.
 **Binary files are skipped.**
 A file containing a NUL byte is left untouched and restored on exit, because
 rendering it as text would corrupt it.
+
+**The undo hint is a best-effort read-only jj query.**
+`currentOperationID` runs `jj --ignore-working-copy --no-pager op log -n 1`
+before the editor opens. Restoring that id undoes the edit because jj has not yet
+committed the edit's own operation. `--ignore-working-copy` keeps the query from
+snapshotting or locking, and any failure (no `jj` on `PATH`, cwd not in a repo)
+yields an empty id and no hint rather than an error.
 
 ## Maintenance
 

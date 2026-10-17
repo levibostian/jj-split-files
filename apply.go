@@ -12,6 +12,10 @@ func runEdit(opts options) error {
 	leftDir := filepath.Clean(opts.leftDir)
 	rightDir := filepath.Clean(opts.rightDir)
 
+	// Captured before the editor opens: it is the operation to restore to in
+	// order to undo this edit.
+	undoOpID := currentOperationID()
+
 	leftTree, err := readTree(leftDir)
 	if err != nil {
 		return fmt.Errorf("reading %s: %w", leftDir, err)
@@ -45,7 +49,11 @@ func runEdit(opts options) error {
 		return fmt.Errorf("reading %s after editing: %w", rightDir, err)
 	}
 
-	return applyEdits(leftDir, rightDir, leftTree, rightTree, plans, edited)
+	if err := applyEdits(leftDir, rightDir, leftTree, rightTree, plans, edited); err != nil {
+		return err
+	}
+	printUndoHint(undoOpID)
+	return nil
 }
 
 type pendingWrite struct {

@@ -34,7 +34,10 @@ func TestIntegrationSplitWithRealJJ(t *testing.T) {
 		f.run("describe", "-m", "base")
 		f.run("new")
 		f.write("f.txt", "alpha\nBETA\ngamma\ndelta\n")
-		f.run("split")
+		splitOut := f.run("split")
+		if !strings.Contains(splitOut, "jj op restore") {
+			t.Fatalf("expected an undo hint in split output:\n%s", splitOut)
+		}
 
 		original := f.run("diff", "-r", "@-", "--git")
 		newCommit := f.run("diff", "-r", "@", "--git")
