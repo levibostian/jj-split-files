@@ -1,6 +1,7 @@
 // Command jj-split-cli is an external diff editor for jj.
 //
-// jj invokes it as `jj-split-cli [--full] [--context N] <left-dir> <right-dir>`
+// jj invokes it as `jj-split-cli [--editor NAME] [--full] [--context N]
+// <left-dir> <right-dir>`
 // (see docs/jj-diff-editor-protocol.md). It renders each changed file as a diff
 // with ` `/`-`/`+` prefixes, opens your code editor, and treats every `-` or `+`
 // line you delete as a change to move into the new commit that `jj split`

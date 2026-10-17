@@ -41,30 +41,56 @@ func TestSplitCommand(t *testing.T) {
 	}
 }
 
-func TestOpenEditorPassesDirAndFlags(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("shell-script editor is POSIX only")
+func TestResolveEditor(t *testing.T) {
+	tests := []struct {
+		in   string
+		want string
+	}{
+		{"vscode", "code --wait --new-window"},
+		{"VSCODE", "code --wait --new-window"},
+		{"  zed  ", "zed --wait --new"},
+		{"subl", "subl -n -w"},
+		{"neovim", "nvim"},
+		{"myeditor --flag", "myeditor --flag"},
+		{"/path/to/editor", "/path/to/editor"},
 	}
-	base := t.TempDir()
-	capture := filepath.Join(base, "args.txt")
-	t.Setenv("CAPTURE", capture)
+	for _, tt := range tests {
+		if got := resolveEditor(tt.in); got != tt.want {
+			t.Fatalf("resolveEditor(%q) = %q, want %q", tt.in, got, tt.want)
+		}
+	}
+}
 
-	// Put the editor in a directory with a space to prove quoted commands work.
-	editorDir := filepath.Join(base, "editor bin")
+// writeCaptureEditor writes a script in editorDir that records its arguments to
+// capture, and returns the script path.
+func writeCaptureEditor(t *testing.T, editorDir, capture string) string {
+	t.Helper()
 	if err := os.MkdirAll(editorDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
+	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > '" + capture + "'\n"
 	editor := filepath.Join(editorDir, "capture.sh")
-	if err := os.WriteFile(editor, []byte("#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$CAPTURE\"\n"), 0o755); err != nil {
+	if err := os.WriteFile(editor, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("JJ_SPLIT_EDITOR", fmt.Sprintf("%q --custom-flag", editor))
+	return editor
+}
+
+func TestOpenEditorUsesSpec(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-script editor is POSIX only")
+	}
+	t.Setenv("JJ_SPLIT_EDITOR", "") // ensure the spec is what runs
+	base := t.TempDir()
+	capture := filepath.Join(base, "args.txt")
+	// Put the editor in a directory with a space to prove quoted commands work.
+	editor := writeCaptureEditor(t, filepath.Join(base, "editor bin"), capture)
 
 	rightDir := filepath.Join(base, "right dir")
 	if err := os.MkdirAll(rightDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := openEditor(rightDir); err != nil {
+	if err := openEditor(rightDir, fmt.Sprintf("%q --custom-flag", editor)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -78,9 +104,31 @@ func TestOpenEditorPassesDirAndFlags(t *testing.T) {
 	}
 }
 
+func TestOpenEditorEnvOverridesSpec(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell-script editor is POSIX only")
+	}
+	base := t.TempDir()
+	capture := filepath.Join(base, "args.txt")
+	editor := writeCaptureEditor(t, filepath.Join(base, "bin"), capture)
+	t.Setenv("JJ_SPLIT_EDITOR", editor)
+
+	rightDir := filepath.Join(base, "right")
+	if err := os.MkdirAll(rightDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// The spec would fail to execute, so success proves the env var won.
+	if err := openEditor(rightDir, "/nonexistent/spec-editor"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(capture); err != nil {
+		t.Fatalf("env editor did not run: %v", err)
+	}
+}
+
 func TestOpenEditorRejectsUnterminatedQuote(t *testing.T) {
-	t.Setenv("JJ_SPLIT_EDITOR", `code "unterminated`)
-	if err := openEditor(t.TempDir()); err == nil {
+	t.Setenv("JJ_SPLIT_EDITOR", "")
+	if err := openEditor(t.TempDir(), `code "unterminated`); err == nil {
 		t.Fatal("expected error for unterminated quote")
 	}
 }

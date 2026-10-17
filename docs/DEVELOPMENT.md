@@ -74,6 +74,13 @@ Deleting the rendered file restores `left/<path>` into `right/`, so the file
 looks unchanged to the first commit and its entire diff moves to the new commit.
 Added files have no parent version, so they stay absent.
 
+**Editor selection is a keyword table plus a raw-command fallback.**
+`builtinEditors` hard-codes the wait flags for common editors (`code --wait
+--new-window`, `zed --wait --new`, ...). Anything that isn't a keyword is passed
+through as a command so users are never boxed in. `JJ_SPLIT_EDITOR` overrides
+`--editor`, mirroring jj's own `$JJ_EDITOR` > `ui.editor` precedence so a shell
+env var can override a config-baked `--editor`.
+
 **Binary files are skipped.**
 A file containing a NUL byte is left untouched and restored on exit, because
 rendering it as text would corrupt it.

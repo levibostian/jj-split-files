@@ -10,6 +10,7 @@ import (
 type options struct {
 	leftDir  string
 	rightDir string
+	editor   string
 	full     bool
 	context  int
 }
@@ -27,6 +28,14 @@ func parseArgs(args []string) (options, error) {
 			opts.full = true
 		case arg == "--hunks":
 			opts.full = false
+		case arg == "--editor":
+			if i+1 >= len(args) {
+				return options{}, fmt.Errorf("--editor needs a value")
+			}
+			i++
+			opts.editor = args[i]
+		case strings.HasPrefix(arg, "--editor="):
+			opts.editor = strings.TrimPrefix(arg, "--editor=")
 		case arg == "--context":
 			if i+1 >= len(args) {
 				return options{}, fmt.Errorf("--context needs a value")
@@ -51,7 +60,7 @@ func parseArgs(args []string) (options, error) {
 		}
 	}
 	if len(positional) != 2 {
-		return options{}, fmt.Errorf("usage: %s [--full] [--context N] <left-dir> <right-dir>", os.Args[0])
+		return options{}, fmt.Errorf("usage: %s [--editor NAME] [--full] [--context N] <left-dir> <right-dir>", os.Args[0])
 	}
 	opts.leftDir = positional[0]
 	opts.rightDir = positional[1]

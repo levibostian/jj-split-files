@@ -23,7 +23,8 @@ window, done.
 
 ## Features
 
-- **Your editor, your keybindings.** VS Code by default; any editor via
+- **Your editor, your keybindings.** Built-in keywords for VS Code, Sublime,
+  Zed and more (`--editor zed`), or any command via `--editor "..."` /
   `JJ_SPLIT_EDITOR`.
 - **A diff, not a raw file.** Every changed file opens as a hunked diff with
   ` `/`-`/`+` prefixes, so changes jump out immediately.
@@ -52,8 +53,11 @@ go build -o ~/.local/bin/jj-split-cli .
 ```toml
 # ~/.config/jj/config.toml
 [ui]
-diff-editor = ["jj-split-cli", "$left", "$right"]
+diff-editor = ["jj-split-cli", "--editor", "vscode", "$left", "$right"]
 ```
+
+Swap `vscode` for any built-in keyword (`zed`, `sublime`, `nvim`, …) or a full
+command — see [Configuration](#configuration).
 
 ```sh
 jj split
@@ -99,33 +103,56 @@ the split and tells you which file caused it.
 
 ## Configuration
 
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `JJ_SPLIT_EDITOR` | `code --wait --new-window` | Command used to open the files. The diff directory is appended as the last argument. |
+`--editor` picks the editor: either a built-in keyword or a full command. It
+defaults to `vscode`.
 
-Flags go in the `diff-editor` list after the binary:
+| Keyword | Command |
+|---------|---------|
+| `vscode`, `code` | `code --wait --new-window` |
+| `sublime`, `subl` | `subl -n -w` |
+| `zed` | `zed --wait --new` |
+| `textmate`, `mate` | `mate -w` |
+| `vim` | `vim` |
+| `nvim`, `neovim` | `nvim` |
+| `helix`, `hx` | `hx` |
+| `emacs` | `emacs -nw` |
+| `micro` | `micro` |
+| `nano` | `nano` |
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--full` | off | Render the whole file instead of only the changed hunks. |
-| `--context N` | `3` | Lines of context around each hunk (only affects the default hunk mode). |
+Anything that isn't a keyword is used as a command verbatim (quotes work for
+paths with spaces). The diff directory is always appended as the last argument.
 
 ```toml
-# Show full files so you can delete anywhere:
+# Built-in keyword (Zed):
+[ui]
+diff-editor = ["jj-split-cli", "--editor", "zed", "$left", "$right"]
+
+# Or a full command; quotes work for paths with spaces:
+[ui]
+diff-editor = ["jj-split-cli", "--editor", "code --reuse-window", "$left", "$right"]
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `--editor NAME` | `vscode` | Built-in keyword or a full editor command. |
+| `JJ_SPLIT_EDITOR` | unset | Overrides `--editor` (like jj's `$JJ_EDITOR` over `ui.editor`). Accepts a keyword or a full command. |
+| `--full` | off | Render the whole file instead of only the changed hunks. |
+| `--context N` | `3` | Lines of context around each hunk (hunk mode only). |
+
+```toml
+# Whole files instead of hunks:
 [ui]
 diff-editor = ["jj-split-cli", "--full", "$left", "$right"]
 
-# Wider hunks, 8 lines of context:
+# Wider hunks:
 [ui]
 diff-editor = ["jj-split-cli", "--context", "8", "$left", "$right"]
 ```
 
-Editor examples:
+One-off override without touching config:
 
 ```sh
-JJ_SPLIT_EDITOR="subl -n -w"           # Sublime Text
-JJ_SPLIT_EDITOR="code --reuse-window"  # reuse an existing VS Code window
-JJ_SPLIT_EDITOR="nvim"                 # terminal editor
+JJ_SPLIT_EDITOR="subl -n -w" jj split
 ```
 
 ## Development

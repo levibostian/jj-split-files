@@ -36,7 +36,7 @@ func runEdit(opts options) error {
 		}
 	}
 
-	if err := openEditor(rightDir); err != nil {
+	if err := openEditor(rightDir, opts.editor); err != nil {
 		return fmt.Errorf("editor: %w", err)
 	}
 

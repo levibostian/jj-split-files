@@ -7,23 +7,27 @@ import (
 	"strings"
 )
 
-// defaultEditor opens one window per run and blocks until it is closed.
-const defaultEditor = "code --wait --new-window"
+// defaultEditor is used when neither JJ_SPLIT_EDITOR nor --editor is set.
+const defaultEditor = "vscode"
 
-// openEditor launches the user's code editor on the temp diff directory and
-// waits for it to exit. Override the command (flags included) with
-// JJ_SPLIT_EDITOR; the directory is appended as the final argument.
-func openEditor(dir string) error {
-	command := defaultEditor
-	if custom := os.Getenv("JJ_SPLIT_EDITOR"); custom != "" {
-		command = custom
+// openEditor launches the configured editor on the temp diff directory and waits
+// for it to exit. JJ_SPLIT_EDITOR overrides the --editor spec (matching jj's
+// $JJ_EDITOR > ui.editor precedence); both accept a built-in keyword or a full
+// command. The directory is appended as the final argument.
+func openEditor(dir, spec string) error {
+	if env := os.Getenv("JJ_SPLIT_EDITOR"); env != "" {
+		spec = env
 	}
+	if spec == "" {
+		spec = defaultEditor
+	}
+	command := resolveEditor(spec)
 	fields, err := splitCommand(command)
 	if err != nil {
 		return err
 	}
 	if len(fields) == 0 {
-		return fmt.Errorf("JJ_SPLIT_EDITOR is empty")
+		return fmt.Errorf("editor command is empty")
 	}
 	args := append(append([]string{}, fields[1:]...), dir)
 	cmd := exec.Command(fields[0], args...)
