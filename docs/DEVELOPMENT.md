@@ -3,79 +3,89 @@
 ## Architecture
 
 ```text
-jj                                      jj-split-cli                         editor
- │  jj split                              │                                   │
- │── materialize sparse left/ + right/ ──▶│                                   │
- │                                        │── read right/ (original) ───▶ in-memory snapshot
- │                                        │── launch JJ_SPLIT_EDITOR ────────▶│ user deletes lines
- │                                        │◀─ editor exits ──────────────────│
- │                                        │── read right/ (edited) ────▶ in-memory snapshot
- │                                        │── keepAsSubsequence(original, edited)
- │                                        │── write sanitized right/ back
- │◀─ snapshot right/ ──────────────────────│
- │  first commit = right, new commit = deleted lines
+jj                                       jj-split-cli                                   editor
+ │  jj split                               │                                              │
+ │── materialize sparse left/ + right/ ───▶│                                              │
+ │                                         │── read left/ + right/ ──────────────▶ in-memory trees
+ │                                         │── lineDiff(left, right) → render hunks/full
+ │                                         │── overwrite right/ with the diff view
+ │                                         │── launch JJ_SPLIT_EDITOR(right) ─────────────▶│ user deletes -/+ lines
+ │                                         │◀─ editor exits ──────────────────────────────│
+ │                                         │── read right/ ──────────────────────▶ edited diff view
+ │                                         │── markKept + reconstruct → first-commit tree
+ │                                         │── overwrite right/ with plain content
+ │◀─ snapshot right/ ───────────────────────│
+ │  first commit = reconstructed tree, new commit = the changes deleted
 ```
 
 The external boundary is jj's diff-editor protocol, documented in
-[jj-diff-editor-protocol.md](jj-diff-editor-protocol.md). Everything the tool
-does is downstream of `right/`.
+[jj-diff-editor-protocol.md](jj-diff-editor-protocol.md). Everything downstream
+of `right/` is ours to shape; jj only cares about the tree we leave behind.
 
 ## Data flow
 
-1. jj runs `jj-split-cli <left> <right>` → `run()` in `main.go`.
-2. `readTree(right)` → snapshot original file contents into memory.
-3. `openEditor(right)` → run `$JJ_SPLIT_EDITOR <right>`, block until exit.
-4. `readTree(right)` → snapshot the edited contents.
-5. `applyDeletionOnly(original, edited, left, right)` → compute kept lines per
-   file, plan whole-file reverts, reject unsupported edits, write the sanitized
-   tree back.
-6. Tool exits `0` → jj snapshots `right/` and assigns the removed lines to the
-   new commit.
+1. `run()` → `parseArgs()` → `runEdit()`.
+2. `readTree(leftDir)` + `readTree(rightDir)` → parent and target trees in memory.
+3. `buildPlan()` per changed text file → `lineDiff()` then render hunks or full
+   into `right/`, keeping the ops and rendered lines for reconstruction.
+4. `openEditor(rightDir)` → run `$JJ_SPLIT_EDITOR <right>`, block until exit.
+5. `readTree(rightDir)` → the edited diff views.
+6. `applyEdits()` → `markKept()` the deleted rendered lines, `reconstruct()` the
+   first-commit file, and write plain content back into `right/`.
+7. Tool exits `0` → jj snapshots `right/`.
 
 ## Key design decisions
 
-**Line deletions only need `right/`; `left/` is read for whole-file deletes.**
-For `jj split`, jj materializes `right = target tree`. Because the read-back tree
-becomes the first commit and the *complement* becomes the new commit, a line
-simply removed from `right/` lands in the new commit automatically — no
-inversion. `left/` is needed only to restore a file's parent version when the
-user deletes the whole file.
+**The editor edits a rendered patch; we reconstruct the tree from it.**
+The read-back tree becomes the first commit, so the tool must leave real file
+content in `right/`. It overwrites `right/` with a diff view, then after the
+editor exits, rebuilds plain content from the original left/right lines plus the
+changes the user deleted.
 
-**Deletion-only enforced with a subsequence test, not a diff algorithm.**
-`keepAsSubsequence` walks both line lists once with two pointers. If every
-edited line can be matched in order against the original, the edit was pure
-deletion; otherwise it's an addition or reorder and we reject the whole run.
-This is O(n), dependency-free, and makes reorders fail loudly instead of being
-silently interpreted as delete+insert.
+**Deleting a `+` moves the addition; deleting a `-` moves the removal.**
+Default (nothing deleted) reproduces the target tree, so all changes stay in the
+first commit. A deleted `+` line is dropped; a deleted `-` line is restored. This
+is the mirror of "delete a change to move it to the new commit" and keeps a
+single rule across both markers.
 
-**Output lines come from the original bytes, not the edited bytes.**
+**Common lines and hunk headers are not selectable.**
+`reconstruct` always emits common (` `) lines and ignores deletions of `@@`
+headers. Only `-`/`+` lines carry a change. Deleting a context line is therefore
+a no-op rather than an error, which keeps the common case forgiving.
+
+**Only deletions are honored; everything else aborts.**
+`markKept` matches the edited lines as a subsequence of the rendered lines. A
+line that can't be matched (added, modified, or reordered) fails the whole run
+before any write, so a stray edit can't silently corrupt the split.
+
+**Output bytes come from the original lines, never the editor.**
 `parseLines` keeps each line's raw terminator alongside its comparison text, and
-`keepAsSubsequence` emits the original raw line. This means CRLF, trailing
-newlines, and EOL normalization performed by the editor never leak into the
-result — only the deletion itself is honored.
+`reconstruct` emits the original raw line. CRLF, trailing newlines, and any EOL
+normalization the editor does cannot leak into the result.
 
-**Unsupported edits abort the run instead of being ignored.**
-Returning a non-zero exit makes jj discard the entire split. It's louder than
-silently dropping a reordered line, which would corrupt the split in a way the
-user wouldn't notice.
+**`lineDiff` is Myers with a bounded fallback.**
+Myers is O(ND), so the common "big file, small change" case uses a tiny trace.
+`traceMemoryCap` guards the rare huge rewrite and falls back to
+`blockDiff` (common prefix/suffix + replace block), which is correct but not
+minimal.
 
 **Whole-file deletion reverts to the parent version.**
-Deleting a file in the editor restores `left/<path>` into `right/`, so the file
+Deleting the rendered file restores `left/<path>` into `right/`, so the file
 looks unchanged to the first commit and its entire diff moves to the new commit.
-Added files have no parent version, so they stay absent and the whole addition
-moves instead. `left/` is read only for this case.
+Added files have no parent version, so they stay absent.
 
-**Symlinks are skipped.**
-They can't be line-edited, and `readTree` leaving them out keeps them untouched
-in `right/`.
+**Binary files are skipped.**
+A file containing a NUL byte is left untouched and restored on exit, because
+rendering it as text would corrupt it.
 
 ## Maintenance
 
-- Behavior depends on jj's sparse checkout of only changed files into `right/`.
-  If that changes, file discovery changes with it.
+- Hunk headers are cosmetic; `reconstruct` never depends on their line numbers.
+- `--full` and hunks share the same `ops`, so reconstruction is identical either
+  way; only rendering differs.
 - `code --wait --new-window` blocks until the *window* closes, not a tab. Users
   who prefer a tab close should override `JJ_SPLIT_EDITOR` with
   `code --reuse-window`.
 - `JJ-INSTRUCTIONS` is skipped by name; jj deletes it before snapshotting.
-- If jj changes the diff-editor protocol, update
-  `docs/jj-diff-editor-protocol.md` and `readTree`/`applyDeletionOnly` together.
+- If jj changes the diff-editor protocol, update `docs/jj-diff-editor-protocol.md`
+  and `readTree`/`runEdit` together.

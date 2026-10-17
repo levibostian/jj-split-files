@@ -54,11 +54,22 @@ func sortedKeys(tree map[string][]byte) []string {
 	return keys
 }
 
-// writeTreeFile overwrites a file inside rightDir, keeping its permissions.
-func writeTreeFile(rightDir, rel string, content []byte) error {
-	path := filepath.Join(rightDir, filepath.FromSlash(rel))
-	if err := os.WriteFile(path, content, 0o644); err != nil {
+// writeTreeFile overwrites a file inside dir. A zero mode keeps the existing
+// file's permissions; a non-zero mode is applied after writing (used when
+// restoring a file that was deleted in the editor).
+func writeTreeFile(dir, rel string, content []byte, mode os.FileMode) error {
+	path := filepath.Join(dir, filepath.FromSlash(rel))
+	perm := mode
+	if perm == 0 {
+		perm = 0o644
+	}
+	if err := os.WriteFile(path, content, perm); err != nil {
 		return fmt.Errorf("writing %s: %w", rel, err)
+	}
+	if mode != 0 {
+		if err := os.Chmod(path, mode); err != nil {
+			return fmt.Errorf("setting mode on %s: %w", rel, err)
+		}
 	}
 	return nil
 }

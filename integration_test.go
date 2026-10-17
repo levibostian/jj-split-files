@@ -26,7 +26,7 @@ func TestIntegrationSplitWithRealJJ(t *testing.T) {
 
 	t.Run("deleted line moves to the new commit", func(t *testing.T) {
 		editor := writeShellScript(t,
-			"grep -v '^delta$' \"$1/f.txt\" > \"$1/f.txt.tmp\"\n"+
+			"grep -v '^+delta$' \"$1/f.txt\" > \"$1/f.txt.tmp\"\n"+
 				"mv \"$1/f.txt.tmp\" \"$1/f.txt\"\n",
 		)
 		f := newJJFixture(t, jjPath, toolPath, editor)
@@ -65,6 +65,28 @@ func TestIntegrationSplitWithRealJJ(t *testing.T) {
 		}
 		if !strings.Contains(newCommit, "+BETA") || !strings.Contains(newCommit, "+delta") {
 			t.Fatalf("new commit should hold the whole diff:\n%s", newCommit)
+		}
+	})
+
+	t.Run("deleted removal line defers the removal to the new commit", func(t *testing.T) {
+		editor := writeShellScript(t,
+			"grep -v '^-beta$' \"$1/f.txt\" > \"$1/f.txt.tmp\"\n"+
+				"mv \"$1/f.txt.tmp\" \"$1/f.txt\"\n",
+		)
+		f := newJJFixture(t, jjPath, toolPath, editor)
+		f.write("f.txt", "alpha\nbeta\ngamma\n")
+		f.run("describe", "-m", "base")
+		f.run("new")
+		f.write("f.txt", "alpha\nBETA\ngamma\n")
+		f.run("split")
+
+		original := f.run("diff", "-r", "@-", "--git")
+		newCommit := f.run("diff", "-r", "@", "--git")
+		if !strings.Contains(original, "+BETA") {
+			t.Fatalf("first commit should keep the addition:\n%s", original)
+		}
+		if !strings.Contains(newCommit, "-beta") {
+			t.Fatalf("new commit should contain the removal:\n%s", newCommit)
 		}
 	})
 }
