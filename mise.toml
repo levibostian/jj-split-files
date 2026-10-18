@@ -1,0 +1,27 @@
+[tools]
+go = "1.26"
+goreleaser = "2.18.3"
+packslip = "1.8.0"
+
+[tasks.build-all]
+description = "Build tar.gz/zip release archives for linux, darwin and windows (amd64 + arm64) into dist/, named for VERSION (default 0.0.0)"
+run = '''
+set -eu
+VERSION="${VERSION:-0.0.0}" goreleaser release --snapshot --clean
+'''
+
+[tasks.packslip]
+description = "Sign the archives in dist/ with packslip into dist/packslip.sigstore.json (no upload), keyless with the CI identity"
+run = '''
+set -eu
+: "${VERSION:?set VERSION, for example: VERSION=1.2.3 mise run packslip}"
+
+project="github.com/levibostian/jj-split-files"
+packslip create \
+  --project "$project" \
+  --version "$VERSION" \
+  --bin jj-split-cli \
+  --url-base "https://${project}/releases/download/${VERSION}" \
+  --out dist \
+  dist/jj-split-cli_*.tar.gz dist/jj-split-cli_*.zip
+'''
