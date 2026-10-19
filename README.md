@@ -181,7 +181,7 @@ JJ_SPLIT_EDITOR="subl -n -w" jj split
 ## Development
 
 ```sh
-go test ./...            # unit + real-jj integration (skips if jj is absent)
+mise run test            # unit + real-jj integration (jj comes from mise)
 go test -short ./...     # unit tests only
 go build -o jj-split-cli .
 ```

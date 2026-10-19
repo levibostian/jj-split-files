@@ -2,6 +2,12 @@
 go = "1.26"
 goreleaser = "2.18.3"
 packslip = "1.8.0"
+# The integration tests shell out to the real jj; without it they skip.
+jj = "0.46.0"
+
+[tasks.test]
+description = "Run all Go tests, including the real-jj integration tests"
+run = "go test ./..."
 
 [tasks.build-all]
 description = "Build tar.gz/zip release archives for linux, darwin and windows (amd64 + arm64) into dist/, named for VERSION (default 0.0.0)"

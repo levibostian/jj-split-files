@@ -26,8 +26,7 @@ jobs:
           get_latest_release_current_branch: decaf shebang https://github.com/levibostian/decaf-script-github-releases.git/shebang.sh@1.3.0 get
           get_next_release_version: decaf shebang https://github.com/levibostian/decaf-script-conventional-commits.git/shebang.sh@0.3.1
           deploy: |
-            VERSION="{{nextVersionName}}"
-            VERSION="$VERSION" mise run build-all
-            VERSION="$VERSION" mise run packslip
-            decaf shebang https://github.com/levibostian/decaf-script-github-releases.git/shebang.sh@1.3.0 set-assets "dist/jj-split-cli_${VERSION}_linux_amd64.tar.gz" "dist/jj-split-cli_${VERSION}_linux_arm64.tar.gz" "dist/jj-split-cli_${VERSION}_darwin_amd64.tar.gz" "dist/jj-split-cli_${VERSION}_darwin_arm64.tar.gz" "dist/jj-split-cli_${VERSION}_windows_amd64.zip" "dist/jj-split-cli_${VERSION}_windows_arm64.zip" "dist/packslip.sigstore.json"
+            VERSION="{{nextVersionName}}" mise run build-all
+            VERSION="{{nextVersionName}}" mise run packslip
+            decaf shebang https://github.com/levibostian/decaf-script-github-releases.git/shebang.sh@1.3.0 set-assets "dist/jj-split-cli_{{nextVersionName}}_linux_amd64.tar.gz" "dist/jj-split-cli_{{nextVersionName}}_linux_arm64.tar.gz" "dist/jj-split-cli_{{nextVersionName}}_darwin_amd64.tar.gz" "dist/jj-split-cli_{{nextVersionName}}_darwin_arm64.tar.gz" "dist/jj-split-cli_{{nextVersionName}}_windows_amd64.zip" "dist/jj-split-cli_{{nextVersionName}}_windows_arm64.zip" "dist/packslip.sigstore.json"
             decaf shebang https://github.com/levibostian/decaf-script-github-releases.git/shebang.sh@1.3.0 set
