@@ -19,6 +19,7 @@ jobs:
         uses: jdx/mise-action@82a612c5ab8bcda7cc5db6b7e81a8e7584c3dc6e # v5
 
       - uses: levibostian/decaf@366970ed9e5059c9a9cf3b3237b3f19dfa0369ad # 0.17.3
+        id: decaf
         env:
           # required to use 'gh' CLI in my step scripts.
           GH_TOKEN: ${{ github.token }}
@@ -36,7 +37,7 @@ jobs:
       # steps). Only on a real push: PR runs are decaf test-mode simulations, and
       # fork PRs don't get id-token/attestations write.
       - uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && steps.decaf.outputs.new_release_version != ''
         with:
           subject-path: |
             dist/*.tar.gz
