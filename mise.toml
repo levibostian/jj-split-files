@@ -1,6 +1,6 @@
 [tools]
 go = "1.27.3"
-goreleaser = "2.18.3"
+goreleaser = "2.19.0"
 packslip = "1.8.0"
 # The integration tests shell out to the real jj; without it they skip.
 jj = "0.46.0"
