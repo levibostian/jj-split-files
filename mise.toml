@@ -3,7 +3,7 @@ go = "1.27.3"
 goreleaser = "2.20.0"
 packslip = "1.11.3"
 # The integration tests shell out to the real jj; without it they skip.
-jj = "0.46.0"
+jj = "0.47.1"
 
 [tasks.test]
 description = "Run all Go tests, including the real-jj integration tests"
